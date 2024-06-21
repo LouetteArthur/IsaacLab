@@ -16,7 +16,7 @@ DEFNDER_CFG = ArticulationCfg(
         fix_base=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.0), joint_pos={"aza_axis": 0.0, "ela_axis": 0.0, "saza_axis": 0.15, "sela_axis": 0.0}
+        pos=(0.0, 0.0, 0.0),  # joint_pos={"aza_axis": 0.0, "ela_axis": 0.0, "saza_axis": 0.15, "sela_axis": 0.0}
     ),
     actuators={
         "aza_axis": ImplicitActuatorCfg(

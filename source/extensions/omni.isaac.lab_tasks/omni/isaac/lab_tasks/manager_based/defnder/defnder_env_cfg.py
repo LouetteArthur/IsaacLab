@@ -14,7 +14,7 @@ from omni.isaac.lab.utils import configclass
 
 import omni.isaac.lab_tasks.manager_based.defnder.mdp as mdp
 from omni.isaac.lab_assets.droneDeFNder import DEFNDER_CFG
-
+import omni.isaac.lab.sim as sim_utils
 
 ##
 # Scene definition
@@ -34,7 +34,14 @@ class DeFNderSceneCfg(InteractiveSceneCfg):
     )
 
     # articulation
-    robot: ArticulationCfg = DEFNDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")  # type: ignore
+    robot: ArticulationCfg = DEFNDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot",
+                                                 init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, -1.0, 0.0),))  
+
+    robot_target = DEFNDER_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/RobotTarget",
+        # spawn=sim_utils.UrdfFileCfg(semantic_tags=[("color", "green")]),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 1.0, 0.0)),
+    )
 
 
 ##
@@ -61,7 +68,8 @@ class RewardsCfg:
     distance_to_target = RewTerm(
         func=mdp.joint_pos_target_l2,
         weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["aza_axis", "ela_axis", "saza_axis", "sela_axis"])},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["aza_axis", "ela_axis", "saza_axis", "sela_axis"]),
+                "target_cfg": SceneEntityCfg("robot_target", joint_names=["aza_axis", "ela_axis", "saza_axis", "sela_axis"])},
     )
 
 
@@ -98,8 +106,9 @@ class ObservationsCfg:
         # observation terms (order preserved)
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
-        target_joint_pos = ObsTerm(func=mdp.joint_pos_target)
-      
+        target_joint_pos = ObsTerm(func=mdp.joint_pos_target,
+                                   params={"target_cfg": SceneEntityCfg("robot_target", joint_names=["aza_axis", "ela_axis", "saza_axis", "sela_axis"])},)
+
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
@@ -111,7 +120,46 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
+    # on start
+    reset_target_aza_axis = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot_target", joint_names=["aza_axis"]),
+            "position_range": (-math.pi, math.pi),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
 
+    reset_target_ela_axis = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot_target", joint_names=["ela_axis"]),
+            "position_range": (-0.52, 1.04),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
+
+    reset_target_saza_axis = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot_target", joint_names=["saza_axis"]),
+            "position_range": (-0.2, 0.2),
+            "velocity_range": (0.0, 0.0),
+        }
+    )
+
+    reset_target_sela_axis = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot_target", joint_names=["sela_axis"]),
+            "position_range": (-0.2, 0.2),
+            "velocity_range": (0.0, 0.0),
+        }
+    )
     # on reset
     reset_aza_axis = EventTerm(
         func=mdp.reset_joints_by_offset,
@@ -152,14 +200,14 @@ class EventCfg:
             "velocity_range": (-math.pi / 2, math.pi / 2),
         }
     )
-
+ 
 
 @configclass
 class DefnderEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the defnder environment."""
 
     # Scene settings
-    scene : DeFNderSceneCfg = DeFNderSceneCfg(num_envs=1, env_spacing=2.5)
+    scene : DeFNderSceneCfg = DeFNderSceneCfg(num_envs=1, env_spacing=4.0)
     # Basic settings
     observations : ObservationsCfg = ObservationsCfg()
     actions : ActionsCfg = ActionsCfg()
@@ -182,9 +230,5 @@ class DefnderEnvCfg(ManagerBasedRLEnvCfg):
         # step settings
         self.decimation = 1  # env step every 1 sim steps: 100Hz / 1 = 100Hz
         # simulation settings
-        self.sim.dt = 0.01  # sim step every 10ms: 100Hz
+        self.sim.dt = 0.1  # sim step every 10ms: 100Hz
         self.episode_length_s = 60  # 60 seconds
-        self.target_aza_axis = torch.distributions.Uniform(-math.pi, math.pi).sample().item()
-        self.target_ela_axis = torch.distributions.Uniform(-0.52, 1.04).sample().item()
-        self.target_saza_axis = torch.distributions.Uniform(-0.2, 0.2).sample().item()
-        self.target_sela_axis = torch.distributions.Uniform(-0.2, 0.2).sample().item()
